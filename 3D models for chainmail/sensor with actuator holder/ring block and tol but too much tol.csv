@@ -1,0 +1,13 @@
+Name,Unit,Expression,Value,Comments,Favorite
+tight_tol,mm,0.15 mm,0.15,,false
+loose_tol,mm,0.3 mm,0.30,,false
+big_R,mm,( cubeDim - 2 * little_r ) / 2,3.075,,false
+little_r,mm,1.425 mm,1.425,,false
+cubeDim,mm,9 mm,9.00,,false
+sensorOD,mm,7 mm,7.00,,false
+light_thread_fit,mm,0.3 mm,0.30,,false
+tightTol,mm,0.15 mm,0.15,,false
+medTol,mm,0.4 mm,0.40,,false
+loose_thread_fit,mm,0.5 mm,0.50,,false
+sensor_m4_screwthread_len,mm,7.5 mm,7.50,,false
+thickness,mm,11.5 mm,11.50,,false
