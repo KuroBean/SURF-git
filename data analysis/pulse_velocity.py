@@ -80,7 +80,7 @@ def compute_pulse_velocity(csv_path, distance, sep=',', skiprows=0, threshold_fr
         plt.legend()
         plt.tight_layout()
   
-    
+    print(f"for {csv_path}:\n")
     print(time[peaks1])
     print(time[peaks2])
 
@@ -92,12 +92,14 @@ def compute_pulse_velocity(csv_path, distance, sep=',', skiprows=0, threshold_fr
     }
 
 # Example usage:
-results = compute_pulse_velocity(
-    r'.\1D chain tension changing exp\10N\scope_12.csv', 
-    distance=0.018*8,        # meters
-    sep=',',
-    skiprows=2,
-    threshold_frac=0.5,  # 50% of max amplitude
-    prominence=0.01       # adjust as needed
-)
-print(results)
+if __name__ == "__main__":
+    results = compute_pulse_velocity(
+        r'.\1D chain tension changing exp\8_19 main data\14N\scope_14.csv', 
+        distance=0.018*8,        # meters
+        sep=',',
+        skiprows=2,
+        threshold_frac=0.5,  # 50% of max amplitude
+        prominence=0.1,       # adjust as needed
+        show=True
+    )
+    print(results)
