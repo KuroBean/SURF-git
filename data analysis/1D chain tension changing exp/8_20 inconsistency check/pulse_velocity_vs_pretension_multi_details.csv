@@ -1,0 +1,12 @@
+pretension_N,csv_index,csv_path,velocity
+5.0,1,.\1D chain tension changing exp\8_20 inconsistency check\5N\SCOPE_08.csv,200.90427292276246
+5.0,2,.\1D chain tension changing exp\8_20 inconsistency check\5N\SCOPE_09.csv,202.55750512621702
+5.0,3,.\1D chain tension changing exp\8_20 inconsistency check\5N\SCOPE_10.csv,201.12314426537995
+5.0,4,.\1D chain tension changing exp\8_20 inconsistency check\5N\SCOPE_11.csv,201.59900208493966
+8.0,1,.\1D chain tension changing exp\8_20 inconsistency check\8N\scope_16.csv,204.78567337632225
+8.0,2,.\1D chain tension changing exp\8_20 inconsistency check\8N\scope_17.csv,207.6067308005187
+8.0,3,.\1D chain tension changing exp\8_20 inconsistency check\8N\scope_18.csv,205.66017652184283
+8.0,4,.\1D chain tension changing exp\8_20 inconsistency check\8N\scope_19.csv,205.20298436960317
+11.0,1,.\1D chain tension changing exp\8_20 inconsistency check\11N\SCOPE_07.csv,213.79767019927718
+11.0,2,.\1D chain tension changing exp\8_20 inconsistency check\11N\SCOPE_08.csv,212.54642663405104
+11.0,3,.\1D chain tension changing exp\8_20 inconsistency check\11N\SCOPE_09.csv,219.4740849191873

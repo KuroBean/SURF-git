@@ -40,7 +40,7 @@ def compute_pulse_velocity(
     show=False,
     # --- new smoothing controls ---
     smooth=True,
-    smooth_window=51,
+    smooth_window=401,
     smooth_polyorder=3,
     overlay_raw=True
 ):
@@ -180,7 +180,7 @@ if __name__ == '__main__':
             prominence=0.1,
             show=True,
             smooth=True,
-            smooth_window=201,
+            smooth_window=401,
             smooth_polyorder=3,
             overlay_raw=True
         )
