@@ -176,24 +176,24 @@ def batch_multifile_velocity_avg(
     # smooth overlay
     xx = np.linspace(np.min(x_mean), np.max(x_mean), 400)
     yy = model(xx, *popt)
-    plt.plot(xx, yy, '-', label='fit: a·√x + d', zorder=4)
+    # plt.plot(xx, yy, '-', label='fit: a·√x + d', zorder=4)
 
     plt.xlabel('Pretension (N)')
     plt.ylabel('Pulse velocity (m/s)')
     plt.title('Pulse velocity vs pretension (multi-file avg ± 1σ)')
 
-    eqn = r"$v(x)=a\sqrt{x}+d$"
-    box = "\n".join([
-        eqn,
-        fr"$a={a_hat:.4g}\ \pm\ {a_se:.2g}$",
-        fr"$d={d_hat:.4g}\ \pm\ {d_se:.2g}$",
-        fr"$R^2={r2:.4f}$"
-    ])
-    plt.gca().text(
-        0.02, 0.98, box, transform=plt.gca().transAxes,
-        va='top', ha='left',
-        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray')
-    )
+    # eqn = r"$v(x)=a\sqrt{x}+d$"
+    # box = "\n".join([
+    #     eqn,
+    #     fr"$a={a_hat:.4g}\ \pm\ {a_se:.2g}$",
+    #     fr"$d={d_hat:.4g}\ \pm\ {d_se:.2g}$",
+    #     fr"$R^2={r2:.4f}$"
+    # ])
+    # plt.gca().text(
+    #     0.02, 0.98, box, transform=plt.gca().transAxes,
+    #     va='top', ha='left',
+    #     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray')
+    # )
 
     plt.grid(True, alpha=0.3)
     plt.legend(loc='best')
@@ -204,15 +204,15 @@ def batch_multifile_velocity_avg(
     plt.show()
     print(f"Saved plot with fit: {out_plot}")
 
-    # Save fit parameters
-    fit_csv_path = os.path.join(root_dir, 'pulse_velocity_fit_params_simple_sqrt.csv')
-    pd.DataFrame({
-        'param': ['a','d'],
-        'value': [a_hat, d_hat],
-        'stderr': [a_se, d_se],
-        'R2': [r2, r2]
-    }).to_csv(fit_csv_path, index=False)
-    print(f"Saved fit params: {fit_csv_path}")
+    # # Save fit parameters
+    # fit_csv_path = os.path.join(root_dir, 'pulse_velocity_fit_params_simple_sqrt.csv')
+    # pd.DataFrame({
+    #     'param': ['a','d'],
+    #     'value': [a_hat, d_hat],
+    #     'stderr': [a_se, d_se],
+    #     'R2': [r2, r2]
+    # }).to_csv(fit_csv_path, index=False)
+    # print(f"Saved fit params: {fit_csv_path}")
 
     return df_summary, df_detail
 

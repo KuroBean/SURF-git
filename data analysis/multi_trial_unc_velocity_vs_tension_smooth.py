@@ -176,24 +176,25 @@ def batch_multifile_velocity_avg(
     # smooth overlay
     xx = np.linspace(np.min(x_mean), np.max(x_mean), 400)
     yy = model(xx, *popt)
-    plt.plot(xx, yy, '-', label='fit: a·√x + d', zorder=4)
+    
 
     plt.xlabel('Pretension (N)')
     plt.ylabel('Pulse velocity (m/s)')
     plt.title('Pulse velocity vs pretension (multi-file avg ± 1σ)')
-
-    eqn = r"$v(x)=a\sqrt{x}+d$"
-    box = "\n".join([
-        eqn,
-        fr"$a={a_hat:.4g}\ \pm\ {a_se:.2g}$",
-        fr"$d={d_hat:.4g}\ \pm\ {d_se:.2g}$",
-        fr"$R^2={r2:.4f}$"
-    ])
-    plt.gca().text(
-        0.02, 0.98, box, transform=plt.gca().transAxes,
-        va='top', ha='left',
-        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray')
-    )
+    
+    #plt.plot(xx, yy, '-', label='fit: a·√x + d', zorder=4)
+    # eqn = r"$v(x)=a\sqrt{x}+d$"
+    # box = "\n".join([
+    #     eqn,
+    #     fr"$a={a_hat:.4g}\ \pm\ {a_se:.2g}$",
+    #     fr"$d={d_hat:.4g}\ \pm\ {d_se:.2g}$",
+    #     fr"$R^2={r2:.4f}$"
+    # ])
+    # plt.gca().text(
+    #     0.02, 0.98, box, transform=plt.gca().transAxes,
+    #     va='top', ha='left',
+    #     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray')
+    # )
 
     plt.grid(True, alpha=0.3)
     plt.legend(loc='best')

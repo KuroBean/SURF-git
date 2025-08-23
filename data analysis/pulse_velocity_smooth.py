@@ -172,7 +172,7 @@ if __name__ == '__main__':
     # Example (adjust to your local path)
     try:
         results = compute_pulse_velocity(
-            r'.\1D chain tension changing exp\8_19 main data\10N\SCOPE_16.csv',
+            r'.\1D chain tension changing exp\8_19 main data\8N\SCOPE_15.csv',
             distance=0.018*8,
             sep=',',
             skiprows=2,
