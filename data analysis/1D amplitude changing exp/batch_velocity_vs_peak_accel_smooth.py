@@ -5,6 +5,7 @@ import os
 import re
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, savgol_filter
 from velocity_and_amplitude import compute_velocity_and_peak_accel
@@ -33,126 +34,165 @@ def _find_csvs(folder_path: str):
 
 # ---------- Batch over voltage folders ----------
 def batch_velocity_vs_peak_accel(
-    root_dir: str,
-    distance: float = DISTANCE,
-    compute_kwargs: dict | None = None,
-    min_files_per_folder: int = 1,
-    max_files_per_folder: int | None = None,
-    save_detail_name: str = 'velocity_vs_peak_accel_details.csv',
-    save_summary_name: str = 'velocity_vs_peak_accel_summary.csv',
-    save_plot_name: str = 'velocity_vs_peak_accel.png',
-    verbose: bool = True
+    root_dir,
+    distance,
+    volts_per_mps2,
+    compute_kwargs=None,
+    csv_glob="*.csv",
+    min_files_per_folder=1,
+    max_files_per_folder=None,
+    save_summary_name=None,
+    save_detail_name=None,
+    save_plot_name=None,
+    verbose=True
 ):
     """
-    Scans `root_dir` for folders named like '50V', '40 V', ..., processes CSVs to compute
-    pulse velocity and peak acceleration amplitude (from ch1). Saves detail & summary CSVs and a plot.
+    Walk subfolders under root_dir whose names look like '50V', '40V', etc.
+    For each CSV, compute (velocity, peak_accel) with compute_velocity_and_peak_accel,
+    then aggregate per folder (mean, std) and make a velocity-vs-peak-accel plot.
+
+    Returns:
+        summary_df: one row per folder (voltage bin)
+        detail_df: one row per CSV file
     """
+    root = Path(root_dir)
+    if not root.exists():
+        raise FileNotFoundError(f"Root directory not found: {root}")
+
     compute_kwargs = dict(compute_kwargs or {})
+    # Ensure downstream plotting inside compute() is off during batching
+    compute_kwargs.setdefault("show", False)
+    # These are fine to pass through; your compute() already handles them
+    # compute_kwargs.setdefault("overlay_raw", True)
+    # compute_kwargs.setdefault("overlay_raw_alpha", 0.25)
+    # compute_kwargs.setdefault("baseline_us", 300)
 
-    detail_rows = []
-    summary_rows = []
-    folder_counts = []
+    rows_detail = []
+    folders = [p for p in root.iterdir() if p.is_dir()]
+    # Keep only folders that look like voltage bins
+    folders = [p for p in folders if _parse_voltage_from_folder(p.name) is not None]
+    if len(folders) == 0:
+        raise RuntimeError("No voltage-named subfolders found (e.g., '50V', '40V').")
 
-    if not os.path.isdir(root_dir):
-        raise FileNotFoundError(f"Root directory not found: {root_dir}")
+    # Sort by numeric voltage descending (e.g., 50V, 40V, 30V ...)
+    folders = sorted(folders, key=lambda p: _parse_voltage_from_folder(p.name), reverse=True)
 
-    for entry in os.scandir(root_dir):
-        if not entry.is_dir():
-            continue
-        volts = _parse_voltage_from_folder(entry.name)
-        if volts is None:
-            continue
-
-        csvs = _find_csvs(entry.path)
-        folder_counts.append((entry.name, volts, len(csvs)))
-        if len(csvs) < int(min_files_per_folder):
-            continue
-        if isinstance(max_files_per_folder, int) and max_files_per_folder > 0:
+    for f in folders:
+        V = _parse_voltage_from_folder(f.name)
+        csvs = sorted(f.glob(csv_glob))
+        if max_files_per_folder is not None:
             csvs = csvs[:max_files_per_folder]
+        if len(csvs) < min_files_per_folder:
+            if verbose:
+                print(f"[Skip] {f.name}: found {len(csvs)} CSV (< {min_files_per_folder})")
+            continue
 
-        vels, accs = [], []
-        for i, csv_path in enumerate(csvs, start=1):
+        if verbose:
+            print(f"[Folder] {f.name}  (V={V})  files={len(csvs)}")
+
+        for path in csvs:
             try:
-                res = compute_velocity_and_peak_accel(csv_path, distance=distance, **compute_kwargs)
+                vel, peak_acc, meta = compute_velocity_and_peak_accel(
+                    csv_path=str(path),
+                    distance=distance,
+                    volts_per_mps2=volts_per_mps2,
+                    **compute_kwargs
+                )
+                rows_detail.append({
+                    "folder": f.name,
+                    "voltage": V,
+                    "csv": str(path),
+                    "velocity_mps": vel,
+                    "peak_accel_mps2": peak_acc,
+                    "dt_s": meta.get("dt", np.nan)
+                })
+                if verbose:
+                    print(f"  OK: {path.name}  vel={vel:.2f} m/s  peak={peak_acc:.3f} m/s²")
             except Exception as e:
                 if verbose:
-                    print(f"[WARN] Skipping {csv_path}: {e}")
-                continue
+                    print(f"  FAIL: {path.name}  -> {e}")
 
-            vels.append(float(res['velocity_mps']))
-            accs.append(float(res['ch1_peak_accel_mps2']))
-            detail_rows.append({
-                'folder_voltage_V': float(volts),
-                'csv_index': int(i),
-                'csv_path': csv_path,
-                'velocity_mps': float(res['velocity_mps']),
-                'peak_accel_mps2': float(res['ch1_peak_accel_mps2']),
-                't_peak1_s': float(res['t_peak1']),
-                't_peak2_s': float(res['t_peak2'])
-            })
+    if len(rows_detail) == 0:
+        raise RuntimeError("No successful computations; check inputs and parameters.")
 
-        if len(vels) == 0:
-            continue
+    detail_df = pd.DataFrame(rows_detail)
 
-        v_arr = np.asarray(vels, dtype=float)
-        a_arr = np.asarray(accs, dtype=float)
-        summary_rows.append({
-            'folder_voltage_V': float(volts),
-            'n_files_used': int(len(v_arr)),
-            'mean_velocity_mps': float(np.mean(v_arr)),
-            'std_velocity_mps': float(np.std(v_arr, ddof=1)) if len(v_arr) > 1 else 0.0,
-            'mean_peak_accel_mps2': float(np.mean(a_arr)),
-            'std_peak_accel_mps2': float(np.std(a_arr, ddof=1)) if len(a_arr) > 1 else 0.0
-        })
+    # Per-folder (voltage) aggregation
+    grp = detail_df.groupby(["folder", "voltage"], dropna=False)
+    summary_df = grp.agg(
+        n=("velocity_mps", "count"),
+        mean_velocity=("velocity_mps", "mean"),
+        std_velocity=("velocity_mps", "std"),
+        mean_peak_accel=("peak_accel_mps2", "mean"),
+        std_peak_accel=("peak_accel_mps2", "std"),
+    ).reset_index()
 
-    if not summary_rows:
+    # Compute standard errors (optional; safe if n>1)
+    summary_df["sem_velocity"] = summary_df["std_velocity"] / np.sqrt(summary_df["n"])
+    summary_df["sem_peak_accel"] = summary_df["std_peak_accel"] / np.sqrt(summary_df["n"])
+
+    # Save tables if requested
+    if save_detail_name:
+        detail_path = root / save_detail_name
+        detail_df.to_csv(detail_path, index=False)
         if verbose:
-            print("Diagnostic: CSV counts per V-folder under:", root_dir)
-            for name, V, n in sorted(folder_counts, key=lambda x: x[1]):
-                print(f"  {name:<8}  V={V:<6g}  csv_count={n}")
-        raise RuntimeError("No suitable V-folders were processed. See diagnostics above.")
+            print(f"[Saved] details -> {detail_path}")
 
-    df_detail = pd.DataFrame(detail_rows).sort_values(['folder_voltage_V', 'csv_index']).reset_index(drop=True)
-    df_summary = pd.DataFrame(summary_rows).sort_values('folder_voltage_V').reset_index(drop=True)
+    if save_summary_name:
+        summary_path = root / save_summary_name
+        summary_df.to_csv(summary_path, index=False)
+        if verbose:
+            print(f"[Saved] summary -> {summary_path}")
 
-    # Save CSVs
-    out_detail = os.path.join(root_dir, save_detail_name)
-    out_summary = os.path.join(root_dir, save_summary_name)
-    df_detail.to_csv(out_detail, index=False)
-    df_summary.to_csv(out_summary, index=False)
-    if verbose:
-        print(f"Saved details: {out_detail}")
-        print(f"Saved summary: {out_summary}")
+    # -------- Plot: velocity vs peak acceleration --------
+    fig, ax = plt.subplots(figsize=(8.5, 6.0))
 
-    # ---- Plot: pulse velocity (y) vs peak acceleration amplitude (x) ----
-    plt.figure(figsize=(9, 6))
+    # Individual CSV points (faint)
+    ax.scatter(
+        detail_df["peak_accel_mps2"].values,
+        detail_df["velocity_mps"].values,
+        s=22, alpha=0.35, label="Per file"
+    )
 
-    # Individual trials
-    x_pts = df_detail['peak_accel_mps2'].values.astype(float)
-    y_pts = df_detail['velocity_mps'].values.astype(float)
-    plt.scatter(x_pts, y_pts, s=22, alpha=0.55, label='individual CSVs', zorder=2)
+    # Per-folder means (+/- std as errorbars)
+    if len(summary_df) > 0:
+        ax.errorbar(
+            summary_df["mean_peak_accel"].values,
+            summary_df["mean_velocity"].values,
+            xerr=summary_df["std_peak_accel"].values,
+            yerr=summary_df["std_velocity"].values,
+            fmt="o", ms=7, capsize=3, elinewidth=1.2, label="Per folder mean ± SD"
+        )
 
-    # Per-folder means with error bars (both x and y)
-    x_mean = df_summary['mean_peak_accel_mps2'].values.astype(float)
-    y_mean = df_summary['mean_velocity_mps'].values.astype(float)
-    xerr   = df_summary['std_peak_accel_mps2'].values.astype(float)
-    yerr   = df_summary['std_velocity_mps'].values.astype(float)
-    plt.errorbar(x_mean, y_mean, xerr=xerr, yerr=yerr, fmt='o', capsize=4, linewidth=1.5,
-                 color='k', label='per-folder mean ±1σ', zorder=3)
+        # Label each mean point with folder name (e.g., '50V')
+        for _, row in summary_df.iterrows():
+            x = row["mean_peak_accel"]
+            y = row["mean_velocity"]
+            label = str(row["folder"])  # shows "50V", etc.
+            # small offset to avoid overlapping the marker
+            ax.annotate(
+                label,
+                (x, y),
+                textcoords="offset points",
+                xytext=(6, 6),
+                fontsize=9
+            )
 
-    plt.xlabel('Peak acceleration amplitude (m/s²)  [from ch1]')
-    plt.ylabel('Pulse velocity (m/s)')
-    plt.title('Pulse velocity vs peak acceleration amplitude')
-    plt.grid(True, alpha=0.3)
-    plt.legend(loc='best')
-    plt.tight_layout()
+    ax.set_xlabel("Peak acceleration (m/s²)")
+    ax.set_ylabel("Pulse velocity (m/s)")
+    ax.set_title("Pulse velocity vs. peak acceleration (labeled by input voltage)")
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="best")
+    fig.tight_layout()
 
-    out_plot = os.path.join(root_dir, save_plot_name)
-    plt.savefig(out_plot, dpi=200)
+    if save_plot_name:
+        out_plot = root / save_plot_name
+        fig.savefig(out_plot, dpi=200)
+        if verbose:
+            print(f"[Saved] plot -> {out_plot}")
+
     plt.show()
-    print(f"Saved plot: {out_plot}")
-
-    return df_summary, df_detail
+    return summary_df, detail_df
 
 
 # ---- Example run (adjust paths and options as needed) ----
@@ -169,7 +209,7 @@ if __name__ == "__main__":
         sep=",",
         skiprows=2,
         threshold_frac=0.5,
-        prominence=0.02,
+        prominence=0.01,
         sample_dist=None,
         show=False,              # turn on if you want per-file plots
         # smoothing (if your script supports it via pulse_velocity_smooth)
@@ -184,7 +224,7 @@ if __name__ == "__main__":
     summary_df, detail_df = batch_velocity_vs_peak_accel(
         root_dir=r".\8_21 main data",
         distance=DISTANCE,
-        #volts_per_mps2=VOLTS_PER_MPS2,     # accelerometer scale
+        volts_per_mps2=VOLTS_PER_MPS2,     # accelerometer scale
         compute_kwargs=compute_kwargs,
         min_files_per_folder=1,            # require at least 1 CSV in each V folder
         max_files_per_folder=None,         # use all CSVs found in each folder
