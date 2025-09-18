@@ -15,14 +15,37 @@ from velocity_and_amplitude import compute_velocity_and_peak_accel
 VOLTS_TO_MPS2 = 1000.0 / 1.02    # ≈ 980.392 m/s^2 per Volt
 DISTANCE = 0.018 * 8             # meters, separation between sensors (adjust if needed)
 
+# --- voltage parsing (robust: matches "5V", "5 V", "amp_5V_gain_6", "V5", "5 volts") ---
+_V_PATTERNS = [
+    re.compile(r'(?<!\d)(\d+(?:\.\d+)?)\s*[vV](?!\d)'),        # number ... V not followed by a digit  (handles underscores etc.)
+    re.compile(r'[vV]\s*(\d+(?:\.\d+)?)'),                     # V first, then number: "V5", "v 12.5"
+    re.compile(r'(?<!\d)(\d+(?:\.\d+)?)\s*volts?\b', re.I),    # "5 volt", "5 volts"
+]
 
 def _parse_voltage_from_folder(folder_name: str):
-    """
-    Extract numeric voltage from names like '50V', '40 v', '30 V '.
-    Returns float or None if it doesn't match.
-    """
-    m = re.search(r'^\s*([-+]?\d*\.?\d+)\s*[vV]\s*$', folder_name)
-    return float(m.group(1)) if m else None
+    for pat in _V_PATTERNS:
+        m = pat.search(folder_name)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                continue
+    return None
+
+
+# Accept patterns like "gain 6", "Gain=6", "g6"
+_GAIN_PATTERNS = [
+    re.compile(r'gain\s*[:=]?\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
+    re.compile(r'\bg\s*[:=]?\s*(\d+(?:\.\d+)?)\b', re.IGNORECASE),
+]
+
+def _parse_gain(folder_name: str, default=2.0):
+    for pat in _GAIN_PATTERNS:
+        m = pat.search(folder_name)
+        if m:
+            return float(m.group(1))
+    return float(default)
+
 
 def _find_csvs(folder_path: str):
     """Return CSV paths directly inside folder_path."""
@@ -79,6 +102,7 @@ def batch_velocity_vs_peak_accel(
 
     for f in folders:
         V = _parse_voltage_from_folder(f.name)
+        G = _parse_gain(f.name, default=2.0)
         csvs = sorted(f.glob(csv_glob))
         if max_files_per_folder is not None:
             csvs = csvs[:max_files_per_folder]
@@ -96,11 +120,13 @@ def batch_velocity_vs_peak_accel(
                     csv_path=str(path),
                     distance=distance,
                     volts_per_mps2=volts_per_mps2,
+                    gain=G,
                     **compute_kwargs
                 )
                 rows_detail.append({
                     "folder": f.name,
                     "voltage": V,
+                    "gain": G,
                     "csv": str(path),
                     "velocity_mps": vel,
                     "peak_accel_mps2": peak_acc,
@@ -118,7 +144,7 @@ def batch_velocity_vs_peak_accel(
     detail_df = pd.DataFrame(rows_detail)
 
     # Per-folder (voltage) aggregation
-    grp = detail_df.groupby(["folder", "voltage"], dropna=False)
+    grp = detail_df.groupby(["folder", "voltage", "gain"], dropna=False)  # <-- added gain
     summary_df = grp.agg(
         n=("velocity_mps", "count"),
         mean_velocity=("velocity_mps", "mean"),
@@ -146,37 +172,17 @@ def batch_velocity_vs_peak_accel(
 
     # -------- Plot: velocity vs peak acceleration --------
     fig, ax = plt.subplots(figsize=(8.5, 6.0))
+    ax.scatter(detail_df["peak_accel_mps2"], detail_df["velocity_mps"], s=22, alpha=0.35, label="Per file")
 
-    # Individual CSV points (faint)
-    ax.scatter(
-        detail_df["peak_accel_mps2"].values,
-        detail_df["velocity_mps"].values,
-        s=22, alpha=0.35, label="Per file"
-    )
-
-    # Per-folder means (+/- std as errorbars)
-    if len(summary_df) > 0:
+    if len(summary_df):
         ax.errorbar(
-            summary_df["mean_peak_accel"].values,
-            summary_df["mean_velocity"].values,
-            xerr=summary_df["std_peak_accel"].values,
-            yerr=summary_df["std_velocity"].values,
+            summary_df["mean_peak_accel"], summary_df["mean_velocity"],
+            xerr=summary_df["std_peak_accel"], yerr=summary_df["std_velocity"],
             fmt="o", ms=7, capsize=3, elinewidth=1.2, label="Per folder mean ± SD"
         )
-
-        # Label each mean point with folder name (e.g., '50V')
         for _, row in summary_df.iterrows():
-            x = row["mean_peak_accel"]
-            y = row["mean_velocity"]
-            label = str(row["folder"])  # shows "50V", etc.
-            # small offset to avoid overlapping the marker
-            ax.annotate(
-                label,
-                (x, y),
-                textcoords="offset points",
-                xytext=(6, 6),
-                fontsize=9
-            )
+            ax.annotate(str(row["folder"]), (row["mean_peak_accel"], row["mean_velocity"]),
+                        textcoords="offset points", xytext=(6, 6), fontsize=9)
 
     ax.set_xlabel("Peak acceleration (m/s²)")
     ax.set_ylabel("Pulse velocity (m/s)")
@@ -185,14 +191,17 @@ def batch_velocity_vs_peak_accel(
     ax.legend(loc="best")
     fig.tight_layout()
 
+    # saves
+    if save_detail_name:
+        (root / save_detail_name).write_text(detail_df.to_csv(index=False))
+    if save_summary_name:
+        (root / save_summary_name).write_text(summary_df.to_csv(index=False))
     if save_plot_name:
-        out_plot = root / save_plot_name
-        fig.savefig(out_plot, dpi=200)
-        if verbose:
-            print(f"[Saved] plot -> {out_plot}")
+        fig.savefig(root / save_plot_name, dpi=200)
 
     plt.show()
     return summary_df, detail_df
+
 
 
 # ---- Example run (adjust paths and options as needed) ----
@@ -201,17 +210,16 @@ if __name__ == "__main__":
     DISTANCE = 0.018 * 8  # meters between the two sensors, adjust if yours differs
 
     # Accelerometer conversion: 1.02 mV per (m/s^2)  =>  0.00102 V per (m/s^2)
-    ACCEL_MV_PER_MPS2 = 1.02
+    ACCEL_MV_PER_MPS2 = 0.51
     VOLTS_PER_MPS2 = ACCEL_MV_PER_MPS2 / 1000.0  # 0.00102
 
     # Per-file detection settings (same style as your tension scripts)
     compute_kwargs = dict(
         sep=",",
-        skiprows=2,
+        skiprows=13,
         threshold_frac=0.5,
         prominence=0.01,
-        sample_dist=None,
-        show=False,              # turn on if you want per-file plots
+        show=True,              # turn on if you want per-file plots
         # smoothing (if your script supports it via pulse_velocity_smooth)
         smooth=True,
         smooth_window=401,
@@ -222,7 +230,7 @@ if __name__ == "__main__":
     # Run the batch over folders like "50V", "40V", "30V", ...
     # (Change root_dir to your amplitude sweep data directory)
     summary_df, detail_df = batch_velocity_vs_peak_accel(
-        root_dir=r".\8_21 main data",
+        root_dir=r".\1D amplitude changing exp\8_21 main data",
         distance=DISTANCE,
         volts_per_mps2=VOLTS_PER_MPS2,     # accelerometer scale
         compute_kwargs=compute_kwargs,
