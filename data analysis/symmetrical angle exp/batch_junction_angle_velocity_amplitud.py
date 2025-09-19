@@ -19,8 +19,13 @@ import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 
+# import sys
+# import os
+# # Get the absolute path to the directory containing the module
+# module_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '1D amplitude changing exp'))
+# # Add the directory to sys.path
+# sys.path.insert(0, module_dir) # Insert at the beginning for higher priority
 from velocity_and_amplitude import compute_velocity_and_peak_accel  # ← your function
-# (supports s1_col/s2_col/gain, smoothing, baseline, etc.)  # :contentReference[oaicite:2]{index=2}
 
 # --------- Parsing helpers ---------
 def _parse_angle_from_folder(name: str):
@@ -205,6 +210,7 @@ def batch_junction_angle_velocity_amplitude(
     out1 = Path(root_dir) / save_velocity_plot
     fig1.savefig(out1, dpi=200)
     if verbose: print(f"[Saved] plot -> {out1}")
+    fig1.show()
 
     # ---------- Plot 2: Peak acceleration vs Angle ----------
     fig2, ax2 = plt.subplots(figsize=(9, 6))
@@ -232,6 +238,7 @@ def batch_junction_angle_velocity_amplitude(
     out2 = Path(root_dir) / save_amplitude_plot
     fig2.savefig(out2, dpi=200)
     if verbose: print(f"[Saved] plot -> {out2}")
+    fig2.show()
 
     plt.close(fig1); plt.close(fig2)
     return summary_df, detail_df
@@ -255,7 +262,9 @@ if __name__ == "__main__":
         smooth_polyorder=3,
         overlay_raw=False,
         baseline_us=300,
-        gain=2                    # default; folder/file can override via 'gain X'
+        gain=2,                    # default; folder/file can override via 'gain X'
+        save_plot=False,
+        show=False
     )
 
     ROOT = r"C:\Users\eiko\Desktop\college files\SURF git\data analysis\symmetrical angle exp\8_22 data"  # ← folder containing subfolders like "45.6 deg", each with CSVs
