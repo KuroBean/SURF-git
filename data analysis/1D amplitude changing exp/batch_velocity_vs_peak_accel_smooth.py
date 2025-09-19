@@ -1,7 +1,6 @@
 # velocity_vs_peak_accel_smooth.py
 # Walk folders like "50V", "40 V", "30v", ...; compute pulse velocity and peak acceleration amplitude.
 
-import os
 import re
 import numpy as np
 import pandas as pd
@@ -32,7 +31,6 @@ def _parse_voltage_from_folder(folder_name: str):
                 continue
     return None
 
-
 # Accept patterns like "gain 6", "Gain=6", "g6"
 _GAIN_PATTERNS = [
     re.compile(r'gain\s*[:=]?\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
@@ -46,19 +44,11 @@ def _parse_gain(folder_name: str, default=2.0):
             return float(m.group(1))
     return float(default)
 
-
-def _find_csvs(folder_path: str):
-    """Return CSV paths directly inside folder_path."""
-    return sorted(
-        os.path.join(folder_path, name)
-        for name in os.listdir(folder_path)
-        if name.lower().endswith('.csv')
-    )
-
 # ---------- Batch over voltage folders ----------
 def batch_velocity_vs_peak_accel(
     root_dir,
     distance,
+    gain_default,
     volts_per_mps2,
     compute_kwargs=None,
     csv_glob="*.csv",
@@ -102,7 +92,7 @@ def batch_velocity_vs_peak_accel(
 
     for f in folders:
         V = _parse_voltage_from_folder(f.name)
-        G = _parse_gain(f.name, default=2.0)
+        G = _parse_gain(f.name, default=gain_default)
         csvs = sorted(f.glob(csv_glob))
         if max_files_per_folder is not None:
             csvs = csvs[:max_files_per_folder]
@@ -209,30 +199,35 @@ if __name__ == "__main__":
     # Geometry
     DISTANCE = 0.018 * 8  # meters between the two sensors, adjust if yours differs
 
-    # Accelerometer conversion: 1.02 mV per (m/s^2)  =>  0.00102 V per (m/s^2)
+    # Accelerometer conversion: 0.51 mV per (m/s^2)  =>  0.00051 V per (m/s^2)
     ACCEL_MV_PER_MPS2 = 0.51
-    VOLTS_PER_MPS2 = ACCEL_MV_PER_MPS2 / 1000.0  # 0.00102
+    VOLTS_PER_MPS2 = ACCEL_MV_PER_MPS2 / 1000.0
 
     # Per-file detection settings (same style as your tension scripts)
     compute_kwargs = dict(
         sep=",",
         skiprows=13,
+
         threshold_frac=0.5,
         prominence=0.01,
-        show=True,              # turn on if you want per-file plots
+
+        show=False, # turn on if you want per-file plots
+        save_plot=False,
+
         # smoothing (if your script supports it via pulse_velocity_smooth)
         smooth=True,
         smooth_window=401,
         smooth_polyorder=3,
-        overlay_raw=False
+        overlay_raw=True,
     )
 
     # Run the batch over folders like "50V", "40V", "30V", ...
     # (Change root_dir to your amplitude sweep data directory)
     summary_df, detail_df = batch_velocity_vs_peak_accel(
-        root_dir=r".\1D amplitude changing exp\8_21 main data",
+        root_dir=r".\8_21 main data",
         distance=DISTANCE,
         volts_per_mps2=VOLTS_PER_MPS2,     # accelerometer scale
+        gain_default=2, #default gain if not parsed from folder name
         compute_kwargs=compute_kwargs,
         min_files_per_folder=1,            # require at least 1 CSV in each V folder
         max_files_per_folder=None,         # use all CSVs found in each folder

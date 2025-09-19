@@ -21,7 +21,8 @@ def compute_velocity_and_peak_accel(
     overlay_raw=True,
     overlay_raw_alpha=0.25,
     baseline_us=300,
-    gain=2
+    gain=2,
+    save_plot=False
 ):
     # ---- load ----
     df = pd.read_csv(csv_path, sep=sep, skiprows=skiprows, header=None)
@@ -80,8 +81,8 @@ def compute_velocity_and_peak_accel(
     # If you prefer sensor 1, change s2v[i2] -> s1v[i1].
     peak_accel_mps2 = (s2v[i2]) / (volts_per_mps2*gain)
 
-    # ---- optional plot ----
-    if show:
+    if show or save_plot:
+        # ---- optional plot ----
         fig, ax = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
 
         # shaded baseline region (first 300 µs)
@@ -110,7 +111,13 @@ def compute_velocity_and_peak_accel(
         ttl = f"{csv_path}\nVelocity = {velocity:.2f} m/s, Peak accel ≈ {peak_accel_mps2:.2f} m/s²"
         fig.suptitle(ttl, fontsize=10)
         fig.tight_layout()
-        plt.show()
+        if save_plot:
+            csv_file_name=csv_path.split(r'\\')[-1][0:-4]
+            fig.savefig(f"{csv_file_name} peaks.png", dpi=200)
+            #print(f"[Saved plot] {f"{csv_file_name} peaks.png"}")
+        if show:
+            plt.show()
+        plt.close(fig)
 
     return velocity, peak_accel_mps2, {
         "t": t,
@@ -127,12 +134,13 @@ def compute_velocity_and_peak_accel(
         "baseline_us": baseline_us,
         "dt": dt,
     }
+
 # --- Lightweight self-test (only runs if this file is executed directly) ---
 if __name__ == '__main__':
     # Example (adjust to your local path)
     try:
         results = compute_velocity_and_peak_accel(
-            r'.\8_21 main data\50V\scope_4.csv',
+            r'.\1D amplitude changing exp\8_21 main data\5V gain 6\scope_40.csv',
             distance=0.018*8,
             sep=',',
             skiprows=13,
