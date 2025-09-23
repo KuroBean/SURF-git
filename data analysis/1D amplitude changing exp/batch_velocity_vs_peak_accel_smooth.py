@@ -209,7 +209,7 @@ if __name__ == "__main__":
         skiprows=13,
 
         threshold_frac=0.5,
-        prominence=0.01,
+        prominence=0.3, #mV
 
         show=False, # turn on if you want per-file plots
         save_plot=True,
