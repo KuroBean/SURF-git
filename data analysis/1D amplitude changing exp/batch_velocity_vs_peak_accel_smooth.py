@@ -197,7 +197,7 @@ def batch_velocity_vs_peak_accel(
 # ---- Example run (adjust paths and options as needed) ----
 if __name__ == "__main__":
     # Geometry
-    DISTANCE = 0.018 * 8  # meters between the two sensors, adjust if yours differs
+    DISTANCE = 0.018 * 6  # meters between the two sensors, adjust if yours differs
 
     # Accelerometer conversion: 0.51 mV per (m/s^2)  =>  0.00051 V per (m/s^2)
     ACCEL_MV_PER_MPS2 = 0.51
@@ -212,7 +212,7 @@ if __name__ == "__main__":
         prominence=0.01,
 
         show=False, # turn on if you want per-file plots
-        save_plot=False,
+        save_plot=True,
 
         # smoothing (if your script supports it via pulse_velocity_smooth)
         smooth=True,
@@ -224,10 +224,10 @@ if __name__ == "__main__":
     # Run the batch over folders like "50V", "40V", "30V", ...
     # (Change root_dir to your amplitude sweep data directory)
     summary_df, detail_df = batch_velocity_vs_peak_accel(
-        root_dir=r".\8_21 main data",
+        root_dir=r"250922_compression_manual",
         distance=DISTANCE,
         volts_per_mps2=VOLTS_PER_MPS2,     # accelerometer scale
-        gain_default=2, #default gain if not parsed from folder name
+        gain_default=4, #default gain if not parsed from folder name
         compute_kwargs=compute_kwargs,
         min_files_per_folder=1,            # require at least 1 CSV in each V folder
         max_files_per_folder=None,         # use all CSVs found in each folder
