@@ -1,10 +1,12 @@
 import pyvisa
 import time
 
+#SET VENV TO PAMS
+
 # Use the absolute path to the Keysight DLL
 visa_dll = 'C:/Windows/System32/visa64.dll'
 # PASTE YOUR ADDRESS FROM CONNECTION EXPERT HERE
-my_scope_address = 'USB0::0x0957::0x17A8::MY51360495::0::INSTR' 
+my_scope_address = 'USB0::0x0957::0x17A8::MY51360495::0::INSTR'
 
 try:
     # 1. Initialize with the explicit DLL

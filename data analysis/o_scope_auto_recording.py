@@ -7,63 +7,55 @@ import h5py
 # --- CONFIGURATION ---
 DIRECTORY_NAME = "Experiment_Data_Run1"
 SCOPE_USB_ADDRESS = 'USB0::0x0957::0x17A8::MY51360495::0::INSTR' 
+
 # ---------------------
 
 def setup_oscilloscope():
     rm = pyvisa.ResourceManager('C:/Windows/System32/visa64.dll')
     scope = rm.open_resource(SCOPE_USB_ADDRESS)
     # Increase timeout to 60 seconds for large data transfers
-    scope.timeout = 60000 
+    scope.timeout = 7000 
     scope.clear()
     print(f"Connected to: {scope.query('*IDN?').strip()}")
     return scope
-
 def capture_data(scope, folder):
     timestamp = time.strftime("%Y%m%d-%H%M%S")
+    h5_path = os.path.join(folder, f"waveform_{timestamp}.h5")
     
-    try:
-        # 1. Capture Screen (PNG)
-        print("Capturing screen...")
-        scope.write(":DISPlay:DATA? PNG, COLor")
-        raw_screen_data = scope.read_raw()
-        
-        png_path = os.path.join(folder, f"screenshot_{timestamp}.png")
-        with open(png_path, 'wb') as f:
-            # Keysight/Agilent usually has a 10-byte TMC header (#800xxxxxx)
-            f.write(raw_screen_data[10:]) 
+    # Define what we want to capture
+    # 'MATH1' or 'MATH' depending on your model
+    sources = ["CHANnel2", "CHANnel3"] 
+    
+    # 1. Capture Screen (Once per trigger)
+    scope.write(":DISPlay:DATA? PNG, COLor")
+    raw_screen_data = scope.read_raw()
+    with open(os.path.join(folder, f"screenshot_{timestamp}.png"), 'wb') as f:
+        f.write(raw_screen_data[10:])
 
-        # 2. Capture Waveform
-        print("Capturing waveform data...")
-        scope.write(":WAVeform:SOURce CHANnel1")
-        scope.write(":WAVeform:FORMat BYTE") 
-        
-        # Change 'MAXimum' to 'NORMal' or set a specific limit
-        # 'NORMal' usually captures the points currently visible on the screen (~1000 pts)
-        # 'RAW' allows you to specify a count
-        scope.write(":WAVeform:POINts:MODE RAW")
-        scope.write(":WAVeform:POINts 100000") # Start with 100k points
-        
-        # Check how many points the scope ACTUALLY decided to provide
-        actual_pts = scope.query(":WAVeform:POINts?")
-        print(f"Requesting {actual_pts.strip()} points...")
-        
-        preamble = scope.query(":WAVeform:PREamble?")
-        
-        # Using query_binary_values with a chunk size can help with timeouts
-        raw_data = scope.query_binary_values(":WAVeform:DATA?", datatype='b', container=np.array)
-        
-        print(f"Data received. Array size: {len(raw_data)}")
-        
-        h5_path = os.path.join(folder, f"waveform_{timestamp}.h5")
-        with h5py.File(h5_path, 'w') as hf:
-            dset = hf.create_dataset("waveform", data=raw_data, compression="gzip")
-            hf.attrs["preamble"] = preamble
-            print(f"H5 file saved successfully: {h5_path}")
+    # 2. Capture Waveforms into one H5 file
+    with h5py.File(h5_path, 'w') as hf:
+        for src in sources:
+            try:
+                print(f"Pulling data from {src}...")
+                scope.write(f":WAVeform:SOURce {src}")
+                print(f"Configuring waveform for {src}...")
+                scope.write(":WAVeform:FORMat BYTE")
+                scope.write(":WAVeform:POINts:MODE RAW")
+                scope.write(":WAVeform:POINts 100000")
 
-        print(f"Success! Saved to {folder}")
-        
-    except Exception as e:
-        print(f"Error during capture: {e}")
+                # Get scaling for THIS specific channel
+                preamble = scope.query(":WAVeform:PREamble?")
+                data = scope.query_binary_values(":WAVeform:DATA?", datatype='B', container=np.array)
+                
+                # Create a group or unique dataset name in the H5
+                print(f"Saving {src} data to H5...")
+                ds = hf.create_dataset(src, data=data, compression="gzip")
+                ds.attrs["preamble"] = preamble
+                
+            except Exception as e:
+                print(f"Could not capture {src}: {e}")
+
+    print(f"Saved all channels to: {h5_path}")
 
 def main():
     if not os.path.exists(DIRECTORY_NAME):
@@ -72,8 +64,10 @@ def main():
     scope = setup_oscilloscope()
     
     # Put scope in 'Single' mode to wait for a specific event
+    scope.write("*CLS")  # Clear all status/event registers before arming
     scope.write(":SINGle")
-
+    time.sleep(1) # Give it a moment to settle
+    scope.query(":TER?")  # Flush any stale trigger event that fired during connection/setup
     try:
         while True:
             # Query the 'Operation Complete' register or Trigger status
