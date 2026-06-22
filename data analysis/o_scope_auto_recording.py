@@ -5,9 +5,9 @@ import numpy as np
 import h5py
 
 # --- CONFIGURATION ---
-DIRECTORY_NAME = "Experiment_Data_Run1"
+DIRECTORY_NAME = "./soliton_experiments/test_exp/135_deg"
 SCOPE_USB_ADDRESS = 'USB0::0x0957::0x17A8::MY51360495::0::INSTR' 
-
+filename_prefix = "200g"
 # ---------------------
 
 def setup_oscilloscope():
@@ -20,7 +20,7 @@ def setup_oscilloscope():
     return scope
 def capture_data(scope, folder):
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    h5_path = os.path.join(folder, f"waveform_{timestamp}.h5")
+    h5_path = os.path.join(folder, f"{filename_prefix}_{timestamp}.h5")
     
     # Define what we want to capture
     # 'MATH1' or 'MATH' depending on your model
@@ -29,7 +29,7 @@ def capture_data(scope, folder):
     # 1. Capture Screen (Once per trigger)
     scope.write(":DISPlay:DATA? PNG, COLor")
     raw_screen_data = scope.read_raw()
-    with open(os.path.join(folder, f"screenshot_{timestamp}.png"), 'wb') as f:
+    with open(os.path.join(folder, f"{filename_prefix}_{timestamp}.png"), 'wb') as f:
         f.write(raw_screen_data[10:])
 
     # 2. Capture Waveforms into one H5 file
@@ -73,7 +73,7 @@ def main():
             # Query the 'Operation Complete' register or Trigger status
             # :TER? checks if a trigger event occurred since the last query
             triggered = scope.query(":TER?").strip()
-            print(f"Trigger status: {triggered}")
+            #print(f"Trigger status: {triggered}")
             if triggered == "+1":
                 print("Trigger detected!")
                 # Give the scope a tiny bit of time to finish drawing
